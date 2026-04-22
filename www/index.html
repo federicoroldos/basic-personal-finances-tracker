@@ -1012,13 +1012,20 @@ function showToast(text){
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>toast.classList.remove('show'),5200);
 }
+function getAndroidBackupPlugin(){
+  if(!window.Capacitor||window.Capacitor.getPlatform?.()!=='android') return null;
+  if(window.Capacitor.Plugins&&window.Capacitor.Plugins.ClariFiBackup) return window.Capacitor.Plugins.ClariFiBackup;
+  if(typeof window.Capacitor.registerPlugin==='function') return window.Capacitor.registerPlugin('ClariFiBackup');
+  return null;
+}
 async function exportData(){
   try{
     const data=await apiExportData();
     const content=JSON.stringify(data,null,2);
     const filename='clarifi-backup-'+todayStr()+'.json';
-    if(window.ClariFiAndroid&&typeof window.ClariFiAndroid.saveBackup==='function'){
-      const result=JSON.parse(window.ClariFiAndroid.saveBackup(filename,content));
+    const androidBackup=getAndroidBackupPlugin();
+    if(androidBackup&&typeof androidBackup.saveBackup==='function'){
+      const result=await androidBackup.saveBackup({filename,content});
       if(!result.ok) throw new Error(result.error||'Export failed');
       showToast(T('export_ok')+' '+(result.path||result.filename||filename));
       return;
@@ -1034,7 +1041,7 @@ async function exportData(){
     URL.revokeObjectURL(url);
     showToast(T('export_ok')+' '+filename);
   }catch(err){
-    showToast(T('export_fail'));
+    showToast(T('export_fail')+(err&&err.message?' '+err.message:''));
   }
 }
 async function importData(input){
