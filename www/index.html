@@ -223,7 +223,8 @@ select option{background:#1C1C1E;color:#fff}
   width:min(calc(100vw - 32px),420px);padding:11px 14px;border-radius:var(--r-md);
   background:rgba(44,44,46,.94);color:#fff;font-size:13px;font-weight:500;text-align:center;
   box-shadow:0 8px 28px rgba(0,0,0,.35);opacity:0;transform:translate(-50%,12px);
-  pointer-events:none;transition:opacity .18s ease,transform .18s ease}
+  pointer-events:none;transition:opacity .18s ease,transform .18s ease;
+  white-space:normal;overflow-wrap:anywhere}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 .fixed-list-clean{display:flex;flex-direction:column;gap:8px}
 .fixed-list-clean .fp-row{margin-bottom:0}
@@ -551,7 +552,7 @@ const STR={
     settings_backup:"Backup",settings_theme:"Theme",settings_language:"Language",
     theme_light:"Light",theme_dark:"Dark",
     btn_export:"Export",btn_import:"Import",
-    export_ok:"Backup exported to Downloads as",import_ok:"Backup imported from",import_bad:"Could not import this file.",
+    export_ok:"Backup exported to",export_fail:"Could not export backup.",import_ok:"Backup imported from",import_bad:"Could not import this file.",
     metric_bal:"Balance",metric_spent:"Spent · 30 days",metric_txns:"Transactions",
     metric_current:"current balance",metric_all:"all accounts",
     saved_ok:"Saved · new balance:",bal_updated:"Updated to",
@@ -576,7 +577,7 @@ const STR={
     settings_backup:"Respaldo",settings_theme:"Tema",settings_language:"Idioma",
     theme_light:"Claro",theme_dark:"Oscuro",
     btn_export:"Exportar",btn_import:"Importar",
-    export_ok:"Respaldo exportado a Descargas como",import_ok:"Respaldo importado desde",import_bad:"No se pudo importar este archivo.",
+    export_ok:"Respaldo exportado a",export_fail:"No se pudo exportar el respaldo.",import_ok:"Respaldo importado desde",import_bad:"No se pudo importar este archivo.",
     metric_bal:"Saldo",metric_spent:"Gastado · 30 días",metric_txns:"Transacciones",
     metric_current:"saldo actual",metric_all:"todas las cuentas",
     saved_ok:"Guardado · nuevo saldo:",bal_updated:"Actualizado a",
@@ -1009,21 +1010,32 @@ function showToast(text){
   toast.textContent=text;
   toast.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>toast.classList.remove('show'),3600);
+  toastTimer=setTimeout(()=>toast.classList.remove('show'),5200);
 }
 async function exportData(){
-  const data=await apiExportData();
-  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
-  const url=URL.createObjectURL(blob);
-  const filename='clarifi-backup-'+todayStr()+'.json';
-  const a=document.createElement('a');
-  a.href=url;
-  a.download=filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  showToast(T('export_ok')+' '+filename);
+  try{
+    const data=await apiExportData();
+    const content=JSON.stringify(data,null,2);
+    const filename='clarifi-backup-'+todayStr()+'.json';
+    if(window.ClariFiAndroid&&typeof window.ClariFiAndroid.saveBackup==='function'){
+      const result=JSON.parse(window.ClariFiAndroid.saveBackup(filename,content));
+      if(!result.ok) throw new Error(result.error||'Export failed');
+      showToast(T('export_ok')+' '+(result.path||result.filename||filename));
+      return;
+    }
+    const blob=new Blob([content],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(T('export_ok')+' '+filename);
+  }catch(err){
+    showToast(T('export_fail'));
+  }
 }
 async function importData(input){
   const file=input.files&&input.files[0];
